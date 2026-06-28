@@ -1,7 +1,7 @@
 from environment import Env2D
 
 def test(agent, num_episodes=30):
-    env = Env2D(world_min=-1.0, world_max=1.0, max_steps=50, reach_threshold=0.1)
+    env = Env2D()
     successes   = 0
     total_steps = []
 
@@ -12,13 +12,13 @@ def test(agent, num_episodes=30):
         steps = 0
 
         while not done:
-            action                                    = agent.select_action(state, deterministic=True)
+            action = agent.select_action(state, deterministic=True)
             next_state, reward, terminated, truncated = env.step(action)
             done  = terminated or truncated
             state = next_state
             steps += 1
 
-        status = "✓" if terminated else "✗"
+        status = "Reached" if terminated else "NOT Reached"
         total_steps.append(steps if terminated else 50)
         if terminated:
             successes += 1

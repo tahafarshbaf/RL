@@ -1,5 +1,4 @@
 import torch.nn as nn
-import torch.optim as optim
 import torch.distributions as distributions
 import torch
 
@@ -17,12 +16,21 @@ class MLP(nn.Module):
 
 
 class Critic(nn.Module):
+    """
+    Critic (Q-network) network for SAC.
+    State + Action → Q-value (how good was this action in this state?)
+    Q(state, action) -> value
+    Input: state, action
+    Output: value
+    """
+    
     def __init__(self, state_dim, action_dim, hidden_dim=64):
         super().__init__()
         self.mlp = MLP(state_dim + action_dim, hidden_dim, 1)
 
     def forward(self, state, action):
         return self.mlp(torch.cat([state, action], dim=-1))
+        # Concatenates the `state` and `action` tensors along the last dimension.
 
 
 class Actor(nn.Module):

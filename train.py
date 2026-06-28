@@ -3,7 +3,7 @@ from SAC import SACAgent
 from replayBuffer import ReplayBuffer
 
 def train(num_episodes=500, batch_size=64, start_after=500):
-    env    = Env2D(world_min=-1.0, world_max=1.0, max_steps=50, reach_threshold=0.1)
+    env    = Env2D()
     agent  = SACAgent(state_dim=4, action_dim=2, max_action=0.15)
     buffer = ReplayBuffer(capacity=50_000)
 
