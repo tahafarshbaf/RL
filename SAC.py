@@ -53,19 +53,19 @@ class SACAgent:
         self.q1_optimizer.zero_grad(); q1_loss.backward(); self.q1_optimizer.step()
         self.q2_optimizer.zero_grad(); q2_loss.backward(); self.q2_optimizer.step()
 
-        # قدم ۲: آپدیت Actor
+       
         new_actions, log_probs = self.actor.sample(states)
         q_new      = torch.min(self.q1(states, new_actions), self.q2(states, new_actions))
         actor_loss = (self.alpha.detach() * log_probs - q_new).mean()
 
         self.actor_optimizer.zero_grad(); actor_loss.backward(); self.actor_optimizer.step()
 
-        # قدم ۳: آپدیت Alpha
         alpha_loss = -(self.log_alpha * (log_probs.detach() + self.target_entropy)).mean()
 
-        self.alpha_optimizer.zero_grad(); alpha_loss.backward(); self.alpha_optimizer.step()
+        self.alpha_optimizer.zero_grad()
+        alpha_loss.backward() 
+        self.alpha_optimizer.step()
 
-        # قدم ۴: Soft update target networks
         for t, s in [(self.q1_target, self.q1), (self.q2_target, self.q2)]:
             for tp, sp in zip(t.parameters(), s.parameters()):
                 tp.data.copy_(self.tau * sp.data + (1 - self.tau) * tp.data)
