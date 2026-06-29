@@ -1,6 +1,5 @@
 import numpy as np
 
-
 class GripperEnv:
     """
     Gripper simulation with object deformation and unknown stiffness.
@@ -14,12 +13,12 @@ class GripperEnv:
     so the agent must learn to generalize across objects.
     """
 
-    ANGLE_MIN = 0.0  # fully open (degrees)
-    ANGLE_MAX = 180.0  # fully closed (degrees)
-    FORCE_MAX = 10.0  # max measurable force (N)
-    MAX_DELTA = 3.0  # max angle change per step (degrees)
-    MAX_STEPS = 150
-    FORCE_THRESHOLD = 0.3  # N — tighter than before
+    ANGLE_MIN   =   0.0
+    ANGLE_MAX   = 180.0
+    FORCE_MAX   =  10.0
+    MAX_DELTA   =   5.0    # larger steps to reach target faster
+    MAX_STEPS   = 200      # more steps
+    FORCE_THRESHOLD = 0.3
 
     def __init__(self):
         # Object properties — unknown to agent, randomized each episode
@@ -35,22 +34,31 @@ class GripperEnv:
         self.reset()
 
     def reset(self, target_force=None):
-        # Randomize object properties each episode
-        # Agent doesn't know these — must infer from force sensor readings
-        self.stiffness = np.random.uniform(0.03, 0.15)  # N/degree
-        self.contact_angle = np.random.uniform(20.0, 80.0)  # degrees
-        self.deform_rate = np.random.uniform(0.005, 0.02)  # decay per step
-        self.deform_factor = 1.0  # resets each episode
-
-        # Random start angle (agent doesn't always start from zero)
-        self.angle = np.random.uniform(self.ANGLE_MIN, self.contact_angle)
-
-        # Random target force
+        self.stiffness     = np.random.uniform(0.05, 0.15)
+        self.contact_angle = np.random.uniform(10.0, 60.0)
+        self.deform_rate   = np.random.uniform(0.002, 0.01)
+        self.deform_factor = 1.0
+    
         if target_force is None:
-            self.target_force = np.random.uniform(1.0, 6.0)
+            self.target_force = np.random.uniform(0.5, 4.0)
         else:
             self.target_force = float(target_force)
-
+    
+        # Calculate the angle needed to reach target force
+        # F = stiffness * (angle - contact_angle)
+        # angle = contact_angle + F/stiffness
+        angle_for_target = self.contact_angle + (self.target_force / self.stiffness)
+        angle_for_target = np.clip(angle_for_target, self.ANGLE_MIN, self.ANGLE_MAX)
+    
+        # Start angle: randomly either before or close to target angle
+        # so agent sometimes needs to go up, sometimes fine-tune
+        start_offset = np.random.uniform(-10.0, 10.0)
+        self.angle = float(np.clip(
+            angle_for_target + start_offset,
+            self.contact_angle,       # never start before contact
+            self.ANGLE_MAX
+        ))
+    
         self.current_step = 0
         return self._get_state()
 
@@ -78,53 +86,42 @@ class GripperEnv:
         return self._get_state(force1, force2), reward, terminated, truncated
 
     def _simulate_forces(self):
-        """
-        Physics model:
-        - No force before contact
-        - After contact: F = stiffness * (angle - contact_angle) * deform_factor
-        - Small Gaussian noise on each sensor
-
-        In real hardware: replace this method with serial port readings.
-        """
         if self.angle <= self.contact_angle:
-            # Phase 1: no contact yet
             base_force = 0.0
         else:
-            # Phase 2: contact + deformation
             compression = self.angle - self.contact_angle
-            base_force = self.stiffness * compression * self.deform_factor
+            base_force  = self.stiffness * compression * self.deform_factor
 
         base_force = np.clip(base_force, 0.0, self.FORCE_MAX)
 
-        # Each finger reads slightly different + sensor noise
-        force1 = np.clip(
-            base_force * 0.95 + np.random.normal(0, 0.05), 0, self.FORCE_MAX
-        )
-        force2 = np.clip(
-            base_force * 1.05 + np.random.normal(0, 0.05), 0, self.FORCE_MAX
-        )
+        # Reduce noise significantly
+        noise_std = 0.02   # was 0.05
+        force1 = np.clip(base_force * 0.95 + np.random.normal(0, noise_std), 0, self.FORCE_MAX)
+        force2 = np.clip(base_force * 1.05 + np.random.normal(0, noise_std), 0, self.FORCE_MAX)
 
         return force1, force2
 
     def _compute_reward(self, force1, force2):
         avg_force = (force1 + force2) / 2.0
-        error = abs(avg_force - self.target_force)
+        error     = abs(avg_force - self.target_force)
 
-        # Shaping: penalize distance from target
-        shaping = -error * 2.0
+    # Normalize error to [0, 1] range relative to FORCE_MAX
+        error_normalized = error / self.FORCE_MAX
 
-        # Bonus: within threshold
-        terminated = error < self.FORCE_THRESHOLD
-        reach_bonus = 10.0 if terminated else 0.0
+    # Shaping: small and normalized
+        shaping = -error_normalized
 
-        # Overshoot penalty: applying too much force is dangerous
-        overshoot_penalty = -5.0 if avg_force > self.target_force + 1.5 else 0.0
+    # Big enough bonus to dominate the shaping signal
+        terminated  = error < self.FORCE_THRESHOLD
+        reach_bonus = 50.0 if terminated else 0.0
 
-        # Small step penalty to encourage efficiency
-        step_penalty = -0.01
+    # Overshoot penalty (normalized)
+        overshoot = avg_force - (self.target_force + 1.5)
+        overshoot_penalty = -min(overshoot / self.FORCE_MAX, 0.0) * 5.0 if avg_force > self.target_force + 1.5 else 0.0
 
-        reward = shaping + reach_bonus + overshoot_penalty + step_penalty
-        return reward, terminated
+        step_penalty = -0.005
+
+        return shaping + reach_bonus + overshoot_penalty + step_penalty, terminated
 
     def _get_state(self, force1=None, force2=None):
         """
@@ -155,6 +152,9 @@ class GripperEnv:
             ],
             dtype=np.float32,
         )
+
+
+
 
 
 class Env2D:
