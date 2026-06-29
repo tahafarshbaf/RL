@@ -3,12 +3,12 @@ from replayBuffer import ReplayBuffer
 from SAC import SACAgent
 
 
-def train(num_episodes=500, batch_size=64, start_after=500):
-    env = GripperEnv(max_steps=100, force_threshold=0.5)
+def train(num_episodes=1000, batch_size=64, start_after=200):
+    env = GripperEnv()
     agent = SACAgent(
-        state_dim=4,
-        action_dim=1,
-        max_action=5.0,
+        state_dim  = 5,     # [angle, force1, force2, force_error, target_force]
+        action_dim = 1,     # delta_angle
+        max_action = 5.0,   # max 3 degrees per step
     )
     buffer = ReplayBuffer(capacity=50_000)
 

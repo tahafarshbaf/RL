@@ -24,7 +24,7 @@ class Critic(nn.Module):
     Output: value
     """
     
-    def __init__(self, state_dim, action_dim, hidden_dim=64):
+    def __init__(self, state_dim, action_dim, hidden_dim=128):
         super().__init__()
         self.mlp = MLP(state_dim + action_dim, hidden_dim, 1)
 

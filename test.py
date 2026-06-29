@@ -4,7 +4,7 @@ from environment import GripperEnv
 
 
 def test(agent, num_episodes=20):
-    env = GripperEnv(max_steps=100, force_threshold=0.5)
+    env = GripperEnv()
     successes   = 0
     total_steps = []
 
